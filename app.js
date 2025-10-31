@@ -1,10 +1,48 @@
-// ===== Storage =====
+// ===== Strong, Reliable Storage (with backups) =====
 const STORAGE_KEY = 'todo-stylish-v1';
+const BACKUP_KEY  = 'todo-stylish-backups-v1'; // array of {ts, data}
+
 /** @typedef {{id:string,title:string,date:string,time:string,notes?:string,done:boolean,notified:boolean,created:number}} Task */
 /** @type {Task[]} */
 let tasks = load();
-function load(){ try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]'); } catch { return []; } }
-function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); }
+
+function load(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw && raw !== '[]') return JSON.parse(raw);
+
+    // Fallback: latest backup if main is empty
+    const backups = JSON.parse(localStorage.getItem(BACKUP_KEY) || '[]');
+    if (Array.isArray(backups) && backups.length) {
+      const latest = backups.sort((a,b)=>b.ts - a.ts)[0];
+      if (latest && latest.data && latest.data.length) {
+        console.warn('Restored from backup:', new Date(latest.ts).toLocaleString());
+        return latest.data;
+      }
+    }
+  } catch {}
+  return [];
+}
+
+function save(){
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    // Keep rolling backups (max 3)
+    const backups = JSON.parse(localStorage.getItem(BACKUP_KEY) || '[]');
+    backups.push({ ts: Date.now(), data: tasks });
+    while (backups.length > 3) backups.shift();
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(backups));
+  } catch (e) {
+    console.error('Save failed', e);
+  }
+}
+
+// Ask browser to keep storage persistent (reduces auto-clear on mobile)
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().then(g => {
+    console.log('Persistent storage', g ? 'GRANTED' : 'not granted');
+  });
+}
 
 // ===== Elements =====
 const form = document.getElementById('taskForm');
@@ -51,9 +89,8 @@ function escapeHtml(s){
 function wrapEveryNWords(text, n=100){
   const w = (text||'').split(/\s+/).filter(Boolean);
   if(!w.length) return '';
-  const out=[];
-  for(let i=0;i<w.length;i+=n) out.push(w.slice(i,i+n).join(' '));
-  return out.join("\n");
+  const out=[]; for(let i=0;i<w.length;i+=n) out.push(w.slice(i,i+n).join(' '));
+  return out.join("\n"); // respected via CSS white-space: pre-wrap
 }
 
 // ===== CRUD =====
@@ -72,25 +109,24 @@ function toggleDone(id){
   save(); render();
 }
 
-// ===== Render tasks =====
+// ===== Sorting (live on top, overdue first, soonest due next; completed at bottom) =====
+function sortScore(t){
+  const d = dueMs(t);
+  if (t.done) return [1, Infinity, -t.created];      // completed → bottom
+  if (d === undefined) return [0, Infinity, -t.created]; // no due → after timed
+  const diff = d - Date.now();
+  const overdue = diff < 0 ? -1 : 0;                 // overdue float to very top
+  return [0, overdue, d];
+}
+
+// ===== Render =====
 function render(){
   listEl.innerHTML = "";
-
   const sorted = [...tasks].sort((a,b)=>{
     const A = sortScore(a), B = sortScore(b);
     return A[0]-B[0] || A[1]-B[1] || A[2]-B[2];
   });
-
   sorted.forEach(t => listEl.appendChild(taskRow(t)));
-}
-
-function sortScore(t){
-  const d = dueMs(t);
-  if (t.done) return [1, Infinity, -t.created]; // bottom
-  if (d === undefined) return [0, Infinity, -t.created];
-  const diff = d - Date.now();
-  const overdue = diff < 0 ? -1 : 0;
-  return [0, overdue, d];
 }
 
 function taskRow(t){
@@ -98,11 +134,10 @@ function taskRow(t){
   li.className="task"+(t.done?" done":"");
 
   const id=`cd-${t.id}`;
-  const due=dueMs(t);
   const wrapped=wrapEveryNWords(t.title,100);
 
   li.innerHTML=`
-    <input type="checkbox" ${t.done?'checked':''} />
+    <input type="checkbox" ${t.done?'checked':''} aria-label="mark done"/>
     <div>
       <div class="title">${escapeHtml(wrapped)}</div>
       <div class="meta">
@@ -118,35 +153,36 @@ function taskRow(t){
   `;
 
   li.querySelector("input").onclick=()=>toggleDone(t.id);
-  if(li.querySelector("[data-del]")) li.querySelector("[data-del]").onclick=()=>removeTask(t.id);
-  if(li.querySelector("[data-edit]")) li.querySelector("[data-edit]").onclick=()=>editTask(t.id);
+  const delBtn = li.querySelector("[data-del]");
+  const editBtn = li.querySelector("[data-edit]");
+  if(delBtn) delBtn.onclick=()=>removeTask(t.id);
+  if(editBtn) editBtn.onclick=()=>editTask(t.id);
 
   const chip=li.querySelector(`[data-id="${t.id}"]`);
   if(chip) chip.onclick=()=>{
-    document.getElementById(`note-${t.id}`).classList.toggle("collapsed");
+    const el = document.getElementById(`note-${t.id}`);
+    if (el) el.classList.toggle("collapsed");
   };
 
   updateBadge(t,id);
-
   return li;
 }
 
 function updateBadge(t,id){
   const el=document.getElementById(id);
-  const due = dueMs(t);
-
   if(!el) return;
+
   if(t.done){
     el.textContent="✔ Completed";
     el.className="badge";
     return;
   }
+  const due = dueMs(t);
   if(!due){
     el.textContent="⏳ —";
     el.className="badge";
     return;
   }
-
   const diff = due - Date.now();
   el.textContent=`⏳ ${t.date} ${t.time} • ${fmtCountdown(diff)}`;
   el.className=`badge ${statusClass(diff)}`;
@@ -156,8 +192,8 @@ function updateBadge(t,id){
 function editTask(id){
   const t=tasks.find(x=>x.id===id); if(!t) return;
   const nt=prompt("Edit task",t.title); if(nt===null) return;
-  const nd=prompt("Edit date",t.date)??t.date;
-  const nh=prompt("Edit time",t.time)??t.time;
+  const nd=prompt("Edit date (YYYY-MM-DD)",t.date)??t.date;
+  const nh=prompt("Edit time (HH:mm)",t.time)??t.time;
   const nn=prompt("Edit notes",t.notes||"")??t.notes;
 
   Object.assign(t,{
@@ -171,19 +207,19 @@ function editTask(id){
 }
 
 // ===== Form submit =====
-form.onsubmit=e=>{
+form.addEventListener('submit',(e)=>{
   e.preventDefault();
   addTask(titleEl.value.trim(), dateEl.value, timeEl.value, notesEl.value.trim());
   form.reset();
-};
+});
 
-// ===== Timer & Reminder =====
+// ===== Countdown + Reminder Engine =====
 setInterval(()=>{
   const now=Date.now();
   tasks.forEach(t=>{
     const id=`cd-${t.id}`;
-    if(t.done){ updateBadge(t,id); return; }
-    updateBadge(t,id);
+    if(t.done){ updateBadge(t,id); return; } // timer stopped for done
+    updateBadge(t,id);                        // update countdown label
     const due=dueMs(t);
     if(due && now>=due && !t.notified){
       notify(t);
@@ -200,9 +236,18 @@ function notify(t){
   }
 }
 
+// ===== Extra reliability: save on hide/close + autosave =====
+window.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') save();
+});
+window.addEventListener('pagehide', save);
+setInterval(() => save(), 10000);
+
 // ===== First run sample =====
 if(tasks.length===0){
   const d=new Date(Date.now()+5*60000);
-  addTask("Welcome! Add tasks and tap 📝 Notes to expand.", d.toISOString().slice(0,10), d.toTimeString().slice(0,5), "This will remind in 5 minutes.");
+  addTask("Welcome! Add tasks. Tick to stop timer & push to bottom. Tap 📝 Notes to expand.", d.toISOString().slice(0,10), d.toTimeString().slice(0,5), "This reminds in 5 minutes.");
 }
+
+// Initial render
 render();
