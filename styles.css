@@ -1,0 +1,184 @@
+/* =========================
+   Black–Blue Neon Glass UI
+   ========================= */
+:root{
+  --bg:#05070d;         /* near-black */
+  --ink:#e7f1ff;        /* main text */
+  --muted:#9bb6e6;      /* secondary */
+  --blue:#3aa2ff;       /* primary neon */
+  --cyan:#57e3ff;       /* cyan accent */
+  --navy:#0b1428;       /* panel base */
+  --navy-2:#0e1a37;     /* panel tint */
+  --border:rgba(255,255,255,.10);
+  --ring:rgba(87,227,255,.35);
+  --shadow:0 18px 50px rgba(0,0,0,.45);
+  --radius:16px;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  color:var(--ink);
+  font-family:Inter,system-ui,Segoe UI,Roboto,Arial;
+  background: var(--bg);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
+
+/* Animated background orbs */
+.bg{
+  position:fixed; inset:-20% -20% auto -20%; height:140vh; z-index:-1;
+  background:
+    radial-gradient(900px 600px at 10% -10%, rgba(17,56,122,.45), transparent 60%),
+    radial-gradient(700px 600px at 110% 10%, rgba(12,86,162,.35), transparent 55%),
+    radial-gradient(600px 500px at 50% 120%, rgba(0,180,255,.18), transparent 60%);
+  filter:saturate(1.1);
+}
+.fx{ animation:bgMove 18s ease-in-out infinite alternate; }
+@keyframes bgMove{
+  0%{ transform:translate3d(0,0,0) scale(1); filter:hue-rotate(0deg) saturate(1.05); }
+  100%{ transform:translate3d(0,-2%,0) scale(1.03); filter:hue-rotate(10deg) saturate(1.2); }
+}
+
+/* Layout */
+.container{ max-width:940px; margin:28px auto; padding:0 16px; }
+.header{
+  display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px;
+}
+.brand{ display:flex; align-items:center; gap:12px; }
+.logo{
+  width:48px; height:48px; border-radius:14px;
+  background: conic-gradient(from 220deg, var(--blue), var(--cyan));
+  box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 10px 30px rgba(0,160,255,.25);
+}
+.titles h1{ margin:0; font-size:24px; letter-spacing:.2px; }
+
+/* Buttons */
+.btn{
+  appearance:none; border:1px solid var(--border); color:var(--ink);
+  background:#0b1326; padding:12px 14px; border-radius:12px; font-weight:700;
+  cursor:pointer; transition:border-color .2s, box-shadow .2s, transform .06s;
+}
+.btn:hover{ border-color:#24427c; }
+.btn:active{ transform:translateY(1px); }
+.btn.primary{
+  background:linear-gradient(135deg, var(--blue), var(--cyan));
+  border:0; color:#051120; position:relative; overflow:hidden;
+}
+.btn.lg{ padding:14px 18px; }
+.btn .btn-glow{
+  position:absolute; inset:-40%; background:radial-gradient(300px 180px at 50% 0%, rgba(255,255,255,.35), transparent 60%);
+  filter:blur(20px); opacity:.35; pointer-events:none;
+}
+
+/* Cards */
+.card{
+  background: linear-gradient(180deg, rgba(14,26,55,.9), rgba(8,18,37,.9));
+  border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow);
+  padding:16px;
+}
+.glass{ backdrop-filter:saturate(120%) blur(8px); -webkit-backdrop-filter:saturate(120%) blur(8px); }
+
+/* Form */
+.form{ display:grid; gap:14px; }
+.grid-2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+@media (max-width:720px){ .grid-2{ grid-template-columns:1fr; } }
+
+.field label{
+  display:block; font-size:12px; color:var(--muted); margin:0 0 6px;
+}
+textarea#title{
+  width:100%; min-height:68px; max-height:200px;
+  line-height:1.35; overflow:auto;
+}
+input, textarea{
+  width:100%; color:var(--ink); background:#0b1428; border:1px solid var(--border);
+  border-radius:12px; padding:12px; outline:none;
+  transition:border-color .2s, box-shadow .2s, transform .06s;
+}
+textarea{ min-height:84px; resize:vertical; }
+input:hover, textarea:hover{ border-color:#25437f; }
+input:focus, textarea:focus{ border-color:#2f69ff; box-shadow:0 0 0 4px var(--ring); }
+.actions{ display:flex; justify-content:flex-end; }
+
+/* Task list */
+.list-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+.task-list{ list-style:none; padding:0; margin:0; display:grid; gap:12px; }
+
+.task{
+  position:relative;
+  display:grid; grid-template-columns:28px 1fr auto; gap:12px; align-items:start;
+  padding:14px; border:1px solid var(--border); border-radius:14px;
+  background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.02));
+  box-shadow: 0 1px 0 rgba(255,255,255,.04) inset;
+}
+.task::after{ /* subtle glow edge */
+  content:''; position:absolute; inset:0; border-radius:14px; pointer-events:none;
+  box-shadow: 0 0 0 1px rgba(58,162,255,.08), 0 12px 30px rgba(0,0,0,.25) inset;
+}
+
+.task .title{
+  font-weight:700;
+  word-break:break-word;
+  overflow-wrap:anywhere;
+  white-space:pre-wrap;         /* respect JS-inserted line breaks */
+}
+
+/* Meta row (badges) */
+.task .meta{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; color:var(--muted); font-size:12px; }
+.badge{
+  padding:4px 10px; border-radius:999px; border:1px solid var(--border);
+  background:#0e1b36; display:inline-flex; align-items:center; gap:6px;
+}
+.badge.soon{ background:#0d1d3b; border-color:#1d3b77; }
+.badge.late{ background:#2a1313; border-color:#562020; color:#ffd5d5; }
+
+/* Notes chip + body */
+.note-chip{
+  cursor:pointer; user-select:none;
+  background:linear-gradient(135deg, rgba(58,162,255,.25), rgba(87,227,255,.18));
+  border-color:rgba(90,170,255,.45);
+}
+.note-body{
+  grid-column: 2 / -1;
+  margin-top:8px; padding:12px; border-radius:12px;
+  background: rgba(14, 27, 54, .6);
+  border:1px solid rgba(255,255,255,.08);
+  color:var(--ink); font-size:14px; line-height:1.45;
+}
+.note-body.collapsed{ display:none; }
+
+/* Row actions */
+.row-actions{ display:flex; gap:8px; }
+.row-actions .ghost{
+  background:transparent; border:1px solid var(--border); color:var(--ink);
+  padding:8px 10px; border-radius:10px; font-weight:600;
+}
+.row-actions .danger{
+  background:#2a0e14; border:1px solid #562129; color:#ffb3b3; padding:8px 10px; border-radius:10px;
+}
+
+/* Checkbox (bigger touch target) */
+.task > input[type="checkbox"]{
+  width:22px; height:22px; margin-top:4px; accent-color:#2f69ff;
+}
+
+/* Mobile tweaks */
+@media (max-width:560px){
+  .container{ padding:0 12px; }
+  .task{ grid-template-columns:24px 1fr auto; padding:12px; }
+  .btn{ padding:11px 12px; }
+  .btn.lg{ padding:12px 14px; }
+}
+
+/* Accessibility helper */
+.visually-hidden{
+  position:absolute!important; height:1px; width:1px; overflow:hidden;
+  clip:rect(1px, 1px, 1px, 1px); white-space:nowrap;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce){
+  .fx{ animation:none; }
+  .btn:active{ transform:none; }
+}
